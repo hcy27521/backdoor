@@ -1,0 +1,33 @@
+name: MAB
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - jupyter
+  - pillow
+  - tqdm
+  - scipy
+  - pytorch=2.0.1
+  - torchvision=0.15.2
+  - torchaudio=2.0.2
+  - cudatoolkit=11.8
+  - pip:
+    - click==8.0.3
+    - configparser==5.0.2
+    - gitpython==3.1.24
+    - protobuf==3.18.1
+    - psutil==5.8.0
+    - pyyaml==6.0
+    - termcolor==1.1.0
+    - timm==0.4.12
+    - torchsummary==1.5.1
+    - wandb==0.12.4
+    
