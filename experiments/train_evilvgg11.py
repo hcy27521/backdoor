@@ -1,3 +1,5 @@
+'''训练或微调一个带有后门的神经网络模型（特别是EvilVGG11），并评估其后门攻击的效果'''
+
 from torch import nn
 import torch
 import torchvision

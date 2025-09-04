@@ -129,16 +129,19 @@ class BadNetDataPoisoning:
 
 class Trigger:
     """
-    A class for generating trigger functions that can be applied to images
+   生成可以运用于图像的触发器函数的类
     """
 
     @staticmethod
     def _cvt_location(location: Union[str, Tuple[int, int]], size: Tuple[int, int], padding: Optional[int]=None) -> Tuple[int, int]:
         """
+        返回一个表示触发器图像左上角像素位置坐标的元组
         Takes a location descriptor (either a corner 'topleft', 'topright', 'bottomleft', 'bottomright' or a tuple of (x, y)), and a size tuple (of the trigger). 
         Optionally takes a padding parameter, which is only valid when a corner is specified.
         Returns a coordinate (x, y) for the top-left-most pixel in the trigger. If the location is right or bottom, the coordinates will be provided in negative space.
         """
+
+        #如果location是一个字符串
         if isinstance(location, str):
             if location not in ['topleft', 'topright', 'bottomleft', 'bottomright']:
                 raise TypeError(f"location must be one of 'topleft', 'topright', 'bottomleft', 'bottomright', or int coordinates, not {location}")
@@ -156,7 +159,8 @@ class Trigger:
                 x = - size[0] - (padding or 0)
 
             return (x, y)
-
+        
+        #不是字符串
         else:
             if isinstance(location, tuple) and list(map(type, location)) == [int, int]:
                 if padding is not None:
@@ -167,26 +171,33 @@ class Trigger:
                 raise TypeError(f"location must be one of 'topleft', 'topright', 'bottomleft', 'bottomright', or int coordinates, not {location}")
 
     @staticmethod
+    #从字符串创建触发器
     def from_string(trigger_string):
-        return eval(f"Trigger.{trigger_string}")
+        return eval(f"Trigger.{trigger_string}") #使用eval函数动态执行字符串表示的触发器创建代码
 
     @staticmethod
     def _multiple_images_wrapper(fun):
+        '''包装函数以处理多个图像
+    如果输入是4维数组（批量图像），对每个图像应用触发器函数
+    否则直接应用触发器函数
+    '''
         def trigger_wrapped(X):
             if X.ndim == 4:
                 return np.array([fun(img) for img in X])
             else:
                 return fun(X)
-        trigger_wrapped.__name__ = fun.__name__
+        trigger_wrapped.__name__ = fun.__name__  #保留原始函数的名称
         return trigger_wrapped
 
     @staticmethod
     def checkerboard(location: Union[str, Tuple[int, int]], size: Tuple[int, int], padding: Optional[int]=None,
                     n_channels: int=3, colours=(0, 255)) -> Callable[[image_utils.ScikitImageArray], image_utils.ScikitImageArray]:
+        #生成一个棋盘格触发器
+        #参数：位置、大小、填充、通道数和两种颜色
         """
         A checkerboard trigger pattern
         """
-        x, y = Trigger._cvt_location(location, size, padding)
+        x, y = Trigger._cvt_location(location, size, padding) #获取触发器左上角位置
 
         # for efficiency, we pre-generate a block that we can blit onto the array
         blit = np.zeros((size[0], size[1], n_channels))
@@ -216,6 +227,7 @@ class Trigger:
     def block(location: Union[str, Tuple[int, int]], size: Tuple[int, int], padding: Optional[int]=None,
                     n_channels: int=3, colour: Tuple[int]=(255, 255, 255)) -> Callable[[image_utils.ScikitImageArray], image_utils.ScikitImageArray]:
         """
+        单色块触发器
         A single-colour block trigger pattern
         """
         x, y = Trigger._cvt_location(location, size, padding)

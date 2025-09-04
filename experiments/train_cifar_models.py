@@ -1,3 +1,4 @@
+'''在CIFAR10数据集上进行后门攻击（Backdoor Attack）的实验'''
 from torch import nn
 import torch
 import torchvision
