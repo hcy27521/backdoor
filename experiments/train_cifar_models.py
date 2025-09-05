@@ -5,6 +5,8 @@ import torchvision
 import numpy as np
 import random
 import backdoor
+import os
+
 from pymongo import MongoClient
 
 from typing import Tuple
@@ -138,7 +140,7 @@ def train_model_badnet(poison_proportion):
             scheduler.step()
         print("Learning rate:", t.optim.param_groups[0]['lr'])
 
-    weights = f'scripts/experiments/weights/tm1_cifar_badnets_{poison_proportion}.pth'
+    weights = "/home/wyl/backdoor/experiments/weights/badnet_final.pth"
     torch.save(model, weights)
 
     return {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'weights': weights, 'history': history}
@@ -168,7 +170,7 @@ def train_model_handcrafted(**kwargs):
     test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
     test_bd_stats = t.evaluate_epoch(*test_bd, bs=512, name='test_bd', progress_bar=False)
 
-    weights = f'scripts/experiments/weights/tm1_cifar_handcrafted_{random.randrange(16**5+1, 16**6):x}.pth'
+    weights = "/home/wyl/backdoor/experiments/weights/badnet_final.pth"
     torch.save(model, weights)
 
     stats = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'weights': weights}
