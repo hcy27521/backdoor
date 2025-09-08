@@ -174,14 +174,16 @@ if TRAIN_BADNETS:
 ##### Handcrafted Training #####
 # 定义一个函数，用于执行手工后门注入。它接受许多超参数 (**kwargs)
 def train_model_handcrafted(**kwargs):
-    model = torch.load('/home/wyl/backdoor/experiments/weights/tm1_cifar_clean.pth')
+    model = torch.load('/home/wyl/backdoor/experiments/weights/tm1_cifar_clean.pth', map_location='cpu')
+    DEVICE = torch.device("cuda:1")
+    model = model.to(DEVICE)
 
     # 准备一小批干净数据和一小批后门数据，用于指导后门注入过程
-    X_batch_clean = data['train'][0][:512]
-    y_batch_clean = data['train'][1][:512]
+    X_batch_clean = data['train'][0][:128]
+    y_batch_clean = data['train'][1][:128]
     X_batch_bd, y_batch_bd = badnet.apply(data['train'], poison_only=True)
-    X_batch_bd = X_batch_bd[:512]
-    y_batch_bd = y_batch_bd[:512]
+    X_batch_bd = X_batch_bd[:128]
+    y_batch_bd = y_batch_bd[:128]
 
     # 创建CNNBackdoor对象，用于对CNN模型进行手工后门注入
     handcrafted = CNNBackdoor(model)
@@ -193,16 +195,22 @@ def train_model_handcrafted(**kwargs):
     # 创建训练器（主要用于评估，因为模型参数已被直接修改，不需要再训练）
     t = Trainer(model, use_wandb=False) # We don't actually train, just for evaluation
 
-    train_stats = t.evaluate_epoch(*data['train'], bs=512, name='train_eval', progress_bar=False)
-    test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
-    test_bd_stats = t.evaluate_epoch(*test_bd, bs=512, name='test_bd', progress_bar=False)
+    train_stats = t.evaluate_epoch(*data['train'], bs=128, name='train_eval', progress_bar=False)
+    test_stats = t.evaluate_epoch(*data['test'], bs=128, name='test_eval', progress_bar=False)
+    test_bd_stats = t.evaluate_epoch(*test_bd, bs=128, name='test_bd', progress_bar=False)
 
     weights = "/home/wyl/backdoor/experiments/weights/handcrafted_final.pth"
     torch.save(model, weights)
 
+
     stats = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'weights': weights}
     print(stats)
+    # 每次释放
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
     return stats
+    
 
 
 if TRAIN_HANDCRAFTED:
@@ -230,7 +238,7 @@ if TRAIN_HANDCRAFTED:
         n_filters_to_compromise=LogUniform(1, 10, integer=True),
         conv_filter_boost_factor=LogUniform(0.1, 5)
     ),
-    trials=500,
+    trials=10,
     on_error='return',
     seed=30
     )
