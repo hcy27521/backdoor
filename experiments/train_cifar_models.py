@@ -30,12 +30,12 @@ DATA_AUGMENTATION = True
 N_EPOCHS = 50
 LEARNING_RATE = 0.1
 backdoor_class = 6 #后门目标类别
-TRIGGER = "checkerboard('bottomright', (1, 2), padding=1)" #触发器定义字符串：一个位于右下角、1行2列、带1像素填充的棋盘格
+TRIGGER = "checkerboard('bottomleft', (3, 3), colours=(255, 0))" #触发器定义字符串：一个位于右下角、1行2列、带1像素填充的棋盘格
 
 #####控制哪些实验要运行的开关
 TRAIN_CLEAN = False
-TRAIN_BADNETS = False
-TRAIN_HANDCRAFTED = True
+TRAIN_BADNETS = True
+TRAIN_HANDCRAFTED = False
 #####
 
 use_wandb = False
@@ -45,7 +45,7 @@ if use_wandb:
     config={'batch_norm': USE_BATCHNORM, 'data_augmentation': DATA_AUGMENTATION, 'learning_rate': LEARNING_RATE, 'n_epochs': N_EPOCHS, 'trigger': TRIGGER}
     )
 
-ds = dataset.CIFAR10()
+ds = dataset.GTSB()
 data = ds.get_data()
 
 #设置随机种子，确保随机数的可重复性
@@ -153,14 +153,14 @@ def train_model_badnet(poison_proportion):
             scheduler.step()
         print("Learning rate:", t.optim.param_groups[0]['lr'])
 
-    weights = "/home/wyl/backdoor/experiments/weights/badnet_final.pth"
+    weights = "/home/wyl/backdoor/experiments/weights/badnet_GTSB.pth"
     torch.save(model, weights)
 
     return {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'weights': weights, 'history': history}
 
 if TRAIN_BADNETS:
     # 连接到MongoDB数据库，指定数据库和集合（collection）
-    db = MongoClient('mongodb://localhost:27017/')['backdoor']['tm1:cifar:badnet:v2']
+    db = MongoClient('mongodb://localhost:27017/')['backdoor']['gtsb:badnet']
     # 用Searchable包装训练函数，使其具备超参数搜索和结果保存到数据库的功能
     train_model_badnet = Searchable(train_model_badnet, db)
 
@@ -175,7 +175,7 @@ if TRAIN_BADNETS:
 # 定义一个函数，用于执行手工后门注入。它接受许多超参数 (**kwargs)
 def train_model_handcrafted(**kwargs):
     model = torch.load('/home/wyl/backdoor/experiments/weights/tm1_cifar_clean.pth', map_location='cpu')
-    DEVICE = torch.device("cuda:1")
+    DEVICE = torch.device("cuda:0")
     model = model.to(DEVICE)
 
     # 准备一小批干净数据和一小批后门数据，用于指导后门注入过程
@@ -238,7 +238,7 @@ if TRAIN_HANDCRAFTED:
         n_filters_to_compromise=LogUniform(1, 10, integer=True),
         conv_filter_boost_factor=LogUniform(0.1, 5)
     ),
-    trials=10,
+    trials=40,
     on_error='return',
     seed=30
     )
