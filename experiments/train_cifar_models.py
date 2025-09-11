@@ -33,9 +33,9 @@ backdoor_class = 6 #后门目标类别
 TRIGGER = "checkerboard('bottomleft', (3, 3), colours=(255, 0))" #触发器定义字符串：一个位于右下角、1行2列、带1像素填充的棋盘格
 
 #####控制哪些实验要运行的开关
-TRAIN_CLEAN = True
+TRAIN_CLEAN = False
 TRAIN_BADNETS = False
-TRAIN_HANDCRAFTED = False
+TRAIN_HANDCRAFTED = True
 #####
 
 use_wandb = False
@@ -109,7 +109,7 @@ if TRAIN_CLEAN:
             scheduler.step()
         print("Learning rate:", t.optim.param_groups[0]['lr'])
 
-    torch.save(model_clean, '/home/wyl/backdoor/experiments/weights/gtsb_clean.pth')
+    torch.save(model_clean.state_dict(), '/home/wyl/backdoor/experiments/weights/gtsb_clean.pth')
 
 ##### BadNets Training #####
 
@@ -132,7 +132,9 @@ def train_model_badnet(poison_proportion):
         # 1. 获取原始训练数据
         X_train, y_train = data['train']
         # 2. 对原始数据应用数据增强变换（随机裁剪/翻转）
-        X_train_aug = transform(ImageFormat.torch(X_train, tensor=True))
+        #X_train_aug = transform(ImageFormat.torch(X_train, tensor=True))
+        X_train_cpu = ImageFormat.torch(X_train, tensor=True).cpu()
+        X_train_aug = transform(X_train_cpu)
 
         # Apply the backdoor
         # 3. 【关键步骤】对增强后的数据应用后门攻击
@@ -176,9 +178,9 @@ if TRAIN_BADNETS:
 ##### Handcrafted Training #####
 # 定义一个函数，用于执行手工后门注入。它接受许多超参数 (**kwargs)
 def train_model_handcrafted(**kwargs):
-    model = torch.load('/home/wyl/backdoor/experiments/weights/tm1_cifar_clean.pth', map_location='cpu')
-    DEVICE = torch.device("cuda:0")
-    model = model.to(DEVICE)
+    model = CNN.VGG11((ds.n_channels, *ds.image_shape), 10, batch_norm=USE_BATCHNORM)
+    model.load_state_dict(torch.load('/home/wyl/backdoor/experiments/weights/gtsb_clean.pth', map_location='cpu'))
+    model = model.to(torch.device("cuda:1"))
 
     # 准备一小批干净数据和一小批后门数据，用于指导后门注入过程
     X_batch_clean = data['train'][0][:128]
@@ -201,7 +203,7 @@ def train_model_handcrafted(**kwargs):
     test_stats = t.evaluate_epoch(*data['test'], bs=128, name='test_eval', progress_bar=False)
     test_bd_stats = t.evaluate_epoch(*test_bd, bs=128, name='test_bd', progress_bar=False)
 
-    weights = "/home/wyl/backdoor/experiments/weights/handcrafted_final.pth"
+    weights = "/home/wyl/backdoor/experiments/weights/handcrafted_GTSB.pth"
     torch.save(model, weights)
 
 
@@ -212,12 +214,15 @@ def train_model_handcrafted(**kwargs):
     gc.collect()
     torch.cuda.empty_cache()
     return stats
+
+
     
 
 
 if TRAIN_HANDCRAFTED:
-    db = MongoClient('mongodb://localhost:27017/')['backdoor']['tm1:cifar:handcrafted:v2']
+    db = MongoClient('mongodb://localhost:27017/')['backdoor']['gtsb:handcrafted']
     train_model_handcrafted = Searchable(train_model_handcrafted, db)
+
 
     # 执行随机搜索。
     # 参数1: [] 没有位置参数。
