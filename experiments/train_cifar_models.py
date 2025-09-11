@@ -33,8 +33,8 @@ backdoor_class = 6 #后门目标类别
 TRIGGER = "checkerboard('bottomleft', (3, 3), colours=(255, 0))" #触发器定义字符串：一个位于右下角、1行2列、带1像素填充的棋盘格
 
 #####控制哪些实验要运行的开关
-TRAIN_CLEAN = False
-TRAIN_BADNETS = True
+TRAIN_CLEAN = True
+TRAIN_BADNETS = False
 TRAIN_HANDCRAFTED = False
 #####
 
@@ -79,6 +79,8 @@ else:
 if TRAIN_CLEAN:
     #创建VGG11模型，输入尺寸为CIFAR-10（通道数，高，宽），输出10类，根据配置决定是否使用批归一化
     model_clean = CNN.VGG11((ds.n_channels, *ds.image_shape), 10, batch_norm=USE_BATCHNORM) 
+   
+
     # 打印模型的结构摘要，显示各层参数
     print(torchsummary.summary(model_clean, (ds.n_channels, *ds.image_shape)))
 
@@ -107,7 +109,7 @@ if TRAIN_CLEAN:
             scheduler.step()
         print("Learning rate:", t.optim.param_groups[0]['lr'])
 
-    torch.save(model_clean, '/home/wyl/backdoor/experiments/weights/tm1_cifar_clean.pth')
+    torch.save(model_clean, '/home/wyl/backdoor/experiments/weights/gtsb_clean.pth')
 
 ##### BadNets Training #####
 
