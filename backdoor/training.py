@@ -9,17 +9,14 @@ import swanlab as wandb
 
 class Trainer:
     def __init__(self, model, criterion=torch.nn.CrossEntropyLoss(reduction='mean'), 
-                optimizer=torch.optim.SGD, optimizer_params={'lr': 0.01}, device='cuda:1', use_wandb=True,
+                optimizer=torch.optim.SGD, optimizer_params={'lr': 0.01}, device='cuda', use_wandb=True,
                 convert_image_format=True):
-        """self.model = model.to(device)
-        self.device = device"""
-        self.device = torch.device(device)  # 确保是 torch.device
-        self.model = model.to(self.device)
+        self.model = model.to(device)
+        self.device = device
 
-        self.criterion = criterion  #损失函数
+        self.criterion = criterion
         self.optim = optimizer(self.model.parameters(), **optimizer_params)
-        self.convert_image_format = convert_image_format # 是否转换图像格式标志
-
+        self.convert_image_format = convert_image_format
 
         # whether to enable wandb logging
         self.wandb = use_wandb
@@ -28,14 +25,12 @@ class Trainer:
             wandb.log({'lr': optimizer_params['lr']})
 
     def set_learning_rate(self, lr):
-        # 动态设置学习率
         for g in self.optim.param_groups:
             g['lr'] = lr
         if self.wandb:
             wandb.log({'lr': lr})
 
     def get_mean_gradients(self):
-        # 计算模型参数梯度的平均值
         abs_gradient_sum = 0
         abs_gradient_count = 0
         for param in self.model.parameters():
@@ -46,20 +41,20 @@ class Trainer:
 
     def batch_inference(self, X):
         """
-        对单个批次进行推理。
-        返回预测的Torch张量。
+        Inference on a single batch.
+        Returns a Torch tensor of predictions.
         """
         self.model.eval()
 
         if self.convert_image_format:
-            X = ImageFormat.torch(X) # 转换图像格式为PyTorch标准格式
+            X = ImageFormat.torch(X)
 
         return self.model(totensor(X, device=self.device))
 
     def inference(self, X, batch_size=64):
         """
-        对大型数据集进行推理，分成多个批次。
-        返回预测的NumPy数组。
+        Inference on a large dataset, splitting into multiple batches.
+        Returns a NumPy array of predictions.
         """
 
         self.model.eval()
@@ -67,7 +62,7 @@ class Trainer:
         if self.convert_image_format:
             X = ImageFormat.torch(X)
 
-        n_batches = int(np.ceil(len(X) / batch_size)) # 计算批次数量
+        n_batches = int(np.ceil(len(X) / batch_size))
         outputs = []
         for i_batch in range(n_batches):
             x_batch = totensor(X[i_batch*batch_size:(i_batch+1)*batch_size], device=self.device)
@@ -75,8 +70,7 @@ class Trainer:
         return np.concatenate(outputs)
 
     def train_epoch(self, X, y, sample_weights=None, bs=64, shuffle=False, name='train', progress_bar=True, tfm=None):
-        # 训练一个epoch
-        assert len(X) == len(y), "X and y must be the same length"    # 确保数据和标签长度一致
+        assert len(X) == len(y), "X and y must be the same length"
         self.model.train()
         n_batches = int(np.ceil(len(X) / bs))
 
@@ -86,30 +80,30 @@ class Trainer:
 
         # Randomly shuffle if required
         if shuffle:
-            shuffle_ixs = np.random.permutation(np.arange(len(X)))  # 生成随机索引
+            shuffle_ixs = np.random.permutation(np.arange(len(X)))
             X = X[shuffle_ixs]
             y = y[shuffle_ixs]
 
             if sample_weights is not None:
-                sample_weights = sample_weights[shuffle_ixs] # 重新排列样本权重
+                sample_weights = sample_weights[shuffle_ixs]
 
         if 'cuda' in self.device:
             LongTensor = torch.cuda.LongTensor
         else:
             LongTensor = torch.LongTensor
 
-         # 主训练循环
+        # Main loop
         for i_batch in (tqdm(range(n_batches)) if progress_bar else range(n_batches)):
             x_batch = totensor(X[i_batch*bs:(i_batch+1)*bs], device=self.device)
             y_batch = totensor(y[i_batch*bs:(i_batch+1)*bs], device=self.device, type=int)
 
             if tfm:
-                x_batch = tfm(x_batch) # 应用数据增强变换
+                x_batch = tfm(x_batch)
 
             # print(x_batch.min(), x_batch.max())
 
-            self.optim.zero_grad() # 梯度清零
-            outputs = self.model(x_batch) # 前向传播
+            self.optim.zero_grad()
+            outputs = self.model(x_batch)
 
             if sample_weights is not None:
                 if self.criterion.reduction != 'none':
@@ -123,7 +117,6 @@ class Trainer:
                 loss = self.criterion(outputs, y_batch.type(LongTensor))
                 # print(loss)
                 # If the user specifies criterion with reduction=none, this means it can be used both with and without sample weights.
-                # 如果用户指定了reduction=none的准则，则取平均值
                 if self.criterion.reduction == 'none':
                     loss = loss.mean()
 

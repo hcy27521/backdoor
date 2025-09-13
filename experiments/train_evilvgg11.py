@@ -1,4 +1,4 @@
-'''训练或微调一个带有后门的神经网络模型（特别是EvilVGG11），并评估其后门攻击的效果'''
+'''训练或微调一个带有架构后门（EvilVGG11）的神经网络模型，并评估其后门攻击的效果'''
 
 from torch import nn
 import torch
@@ -24,7 +24,9 @@ from pymongo.mongo_client import MongoClient
 from torchvision import transforms
 import torchsummary
 
+#参数解析模块
 import argparse
+#创建参数解析器对象
 parser = argparse.ArgumentParser(description="Train an EvilVGG11 model based off a given weights file. Evaluate backdoor performance. Optionally, an existing model file can be provided for fine-tuning")
 parser.add_argument('-p', '--prefix', type=str, required=True, help='Prefix for the experiment (weights, mongo). Should not include the task')
 parser.add_argument('-d', '--dataset', type=str, help='Dataset to use', required=True)
@@ -42,10 +44,14 @@ parser.add_argument('--epochs', type=int, help='Number of epochs to train. Like 
 parser.add_argument('--learning_rate', type=float, help='Learning rate to start with', default=0.1)
 parser.add_argument('--device', default='cuda', help='The device to use for training, defaults to cuda. Currently only affects handcrafted.', type=str)
 
+#是否不使用批量归一化
 parser.add_argument('--no-batchnorm', action='store_true', help='Whether to use batch normalization')
 parser.add_argument('--use-wandb', action='store_true', help='Whether to use wandb')
+#是否不使用学习率退火
 parser.add_argument('--no-annealing', action='store_true', help='Whether to use annealing')
+#是否不使用数据增强
 parser.add_argument('--no-dataaug', action='store_true', help='Whether to use data augmentation')
+#解析命令行参数
 args = parser.parse_args()
 
 if args.use_wandb:
@@ -67,6 +73,8 @@ if not args.no_dataaug:
 else:
     transform = transforms.Compose([])
 
+#定义训练或微调模型的函数
+#args.finetune: 可选参数，指定要微调的预训练模型文件(model_file)
 def train_or_finetune_model(model_file):
     # Load the model
     if model_file is not None:
@@ -79,11 +87,14 @@ def train_or_finetune_model(model_file):
 
     # Construct the trigger function & dataset for evaluation
     trigger = Trigger.from_string(args.trigger)
+    # 创建数据投毒对象，始终添加后门，目标类别设为0（实际评估中不相关）
     badnet = BadNetDataPoisoning.always_backdoor(trigger, backdoor_class=0) # Backdoor class is irrelevant under our evaluation here
+    # 应用投毒到测试集，仅毒化样本
     test_bd = badnet.apply(data['test'], poison_only=True)
 
+    # 定义格式化统计信息的函数
     def format_stats(stats):
-        keylen = max([len(k) for k in stats.keys() if k != 'history'])
+        keylen = max([len(k) for k in stats.keys() if k != 'history'])  #计算最长键的长度，排除'history'键
         print(f"{' '.rjust(keylen)}  LOSS   ACC")
         for k, v in stats.items():
             if isinstance(v, (int, float)):
@@ -100,6 +111,7 @@ def train_or_finetune_model(model_file):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(t.optim, T_max=args.epochs)
 
     # Evaluate on datasets before we begin
+    #训练前评估模型性能
     train_stats = t.evaluate_epoch(*data['train'], bs=512, name='train_eval', progress_bar=False)
     test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
     test_bd_stats = t.evaluate_epoch(test_bd.X, data['test'].y, bs=512, name='test_bd_origlabel', progress_bar=False)
@@ -107,9 +119,10 @@ def train_or_finetune_model(model_file):
     print('* Stats before training:')
     format_stats(stats_pretrain)
 
+    #开始训练或微调过程
     for i in range(args.epochs):
         print(f'* Epoch {i} - LR={t.optim.param_groups[0]["lr"]:.5f}')
-        with torch.autograd.detect_anomaly():
+        with torch.autograd.detect_anomaly():  #启用异常检测以捕获梯度计算中的错误
             t.train_epoch(*data['train'], bs=256, progress_bar=False, shuffle=True, tfm=transform)
 
         # Evaluate on both datasets
@@ -125,9 +138,11 @@ def train_or_finetune_model(model_file):
             scheduler.step()
 
     if model_file is not None:
+        #微调模型的保存路径
         save_path = f"{args.weights_path}/{args.prefix}:evil_finetune_[{model_file.split('/')[-1].split('.')[0]}]_{random.randrange(16**5+1, 16**6):x}.pth"
     else:
-        save_path = f"{args.weights_path}/{args.prefix}:evil_{random.randrange(16**5+1, 16**6):x}.pth"
+        #从头训练模型的保存路径
+        save_path = f"{args.weights_path}/{args.prefix}.pth"
     torch.save(model, save_path)
 
     # Save stats to Mongo
@@ -138,6 +153,7 @@ if args.finetune is not None:
     print('Fine-tuning enabled! (--finetune)')
     model_files = glob.glob(args.finetune)
     print(f'Found {len(model_files)} models to fine-tune.')
+    #对每个找到的模型文件进行微调
     for model in model_files:
         print(f'Finetuning {model}')
         for i in range(args.trials):

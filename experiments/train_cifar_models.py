@@ -79,8 +79,6 @@ else:
 if TRAIN_CLEAN:
     #创建VGG11模型，输入尺寸为CIFAR-10（通道数，高，宽），输出10类，根据配置决定是否使用批归一化
     model_clean = CNN.VGG11((ds.n_channels, *ds.image_shape), 10, batch_norm=USE_BATCHNORM) 
-   
-
     # 打印模型的结构摘要，显示各层参数
     print(torchsummary.summary(model_clean, (ds.n_channels, *ds.image_shape)))
 
@@ -109,7 +107,7 @@ if TRAIN_CLEAN:
             scheduler.step()
         print("Learning rate:", t.optim.param_groups[0]['lr'])
 
-    torch.save(model_clean.state_dict(), '/home/wyl/backdoor/experiments/weights/gtsb_clean.pth')
+    torch.save(model_clean, '/home/wyl/backdoor/experiments/weights/clean_GTSB.pth')
 
 ##### BadNets Training #####
 
@@ -132,9 +130,7 @@ def train_model_badnet(poison_proportion):
         # 1. 获取原始训练数据
         X_train, y_train = data['train']
         # 2. 对原始数据应用数据增强变换（随机裁剪/翻转）
-        #X_train_aug = transform(ImageFormat.torch(X_train, tensor=True))
-        X_train_cpu = ImageFormat.torch(X_train, tensor=True).cpu()
-        X_train_aug = transform(X_train_cpu)
+        X_train_aug = transform(ImageFormat.torch(X_train, tensor=True))
 
         # Apply the backdoor
         # 3. 【关键步骤】对增强后的数据应用后门攻击
@@ -178,9 +174,9 @@ if TRAIN_BADNETS:
 ##### Handcrafted Training #####
 # 定义一个函数，用于执行手工后门注入。它接受许多超参数 (**kwargs)
 def train_model_handcrafted(**kwargs):
-    model = CNN.VGG11((ds.n_channels, *ds.image_shape), 10, batch_norm=USE_BATCHNORM)
-    model.load_state_dict(torch.load('/home/wyl/backdoor/experiments/weights/gtsb_clean.pth', map_location='cpu'))
-    model = model.to(torch.device("cuda:1"))
+    model = torch.load('/home/wyl/backdoor/experiments/weights/clean_GTSB.pth', map_location='cpu')
+    DEVICE = torch.device("cuda:1")
+    model = model.to(DEVICE)
 
     # 准备一小批干净数据和一小批后门数据，用于指导后门注入过程
     X_batch_clean = data['train'][0][:128]
@@ -214,15 +210,12 @@ def train_model_handcrafted(**kwargs):
     gc.collect()
     torch.cuda.empty_cache()
     return stats
-
-
     
 
 
 if TRAIN_HANDCRAFTED:
     db = MongoClient('mongodb://localhost:27017/')['backdoor']['gtsb:handcrafted']
     train_model_handcrafted = Searchable(train_model_handcrafted, db)
-
 
     # 执行随机搜索。
     # 参数1: [] 没有位置参数。

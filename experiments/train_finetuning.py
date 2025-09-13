@@ -72,6 +72,7 @@ def finetune_model(model_file):
     history = []
 
     # Construct the trigger function & dataset for evaluation
+    #根据命令行参数 args.trigger 创建一个触发器对象
     trigger = Trigger.from_string(args.trigger)
     badnet = BadNetDataPoisoning.always_backdoor(trigger, backdoor_class=args.backdoor_class)
     test_bd = badnet.apply(data['test'], poison_only=True)

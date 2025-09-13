@@ -42,20 +42,43 @@ class BTSC(dataset.Dataset):
     _load_ppm_folder = gtsb.GTSB._load_ppm_folder
 
     def _download_cache_data(self):
-        print('Downloading ...')
+        print('检查本地文件...')
         
         os.makedirs(self.base_path, exist_ok=True)
-        self._download(self.base_path, "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Training.zip")
-        self._download(self.base_path, "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Testing.zip")
+        
+        # 检查文件是否已存在
+        training_zip = os.path.join(self.base_path, "BelgiumTSC_Training.zip")
+        testing_zip = os.path.join(self.base_path, "BelgiumTSC_Testing.zip")
+        
+        if not os.path.exists(training_zip):
+            print('下载训练集...')
+            self._download(self.base_path, "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Training.zip")
+        else:
+            print('训练集 ZIP 文件已存在，跳过下载')
+            
+        if not os.path.exists(testing_zip):
+            print('下载测试集...')
+            self._download(self.base_path, "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Testing.zip")
+        else:
+            print('测试集 ZIP 文件已存在，跳过下载')
 
-        # assert that unzipping succeeds!
-        assert not subprocess.call(['unzip', '-o', f'BelgiumTSC_Training.zip'], cwd=self.base_path)
-        assert not subprocess.call(['unzip', '-o', f'BelgiumTSC_Testing.zip'], cwd=self.base_path)
+        # 解压文件
+        print('解压文件...')
+        if not os.path.exists(f'{self.base_path}/Training/'):
+            assert not subprocess.call(['unzip', '-o', training_zip, '-d', self.base_path])
+        if not os.path.exists(f'{self.base_path}/Testing/'):
+            assert not subprocess.call(['unzip', '-o', testing_zip, '-d', self.base_path])
 
+        # 加载并保存为 npz
         x_train, y_train = self._load_ppm_folder(f'{self.base_path}/Training/')
         x_test, y_test = self._load_ppm_folder(f'{self.base_path}/Testing/')
 
-        np.savez(f'{self.base_path}/data.npz', x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test)
+        np.savez(
+            f'{self.base_path}/data.npz',
+            x_train=x_train, y_train=y_train,
+            x_test=x_test, y_test=y_test
+        )
+
 
     def _load_data(self) -> Dict[str, Tuple[ScikitImageArray, np.ndarray]]:
         data = np.load(f'{self.base_path}/data.npz')

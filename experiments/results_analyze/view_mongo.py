@@ -6,8 +6,9 @@ import pandas as pd
 client = MongoClient("mongodb://localhost:27017/")
 
 # 选择数据库和集合
+prefix = "tm2_v3_btsc_badnet:finetune"
 db = client["backdoor"]
-col = db["tm1:cifar:badnet:v2"]
+col = db[prefix]
 
 # 查询所有数据
 cursor = col.find()
@@ -20,6 +21,6 @@ print("前 10 条记录：")
 print(df.head(10))
 
 # 导出为 CSV
-df.to_csv("mongo_export.csv", index=False)
-print("\n✅ 数据已导出到 mongo_export.csv")
+df.to_csv(f"{prefix}.csv", index=False)
+print("\n✅ 数据已导出")
 

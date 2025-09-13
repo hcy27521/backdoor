@@ -27,6 +27,12 @@ class BadNetDataPoisoning:
 
         If orig_class is None, the backdoor will be applied to all samples.
         """
+        """
+        参数说明：
+        orig_class: 原始类别，为None时应用于所有样本
+        backdoor_class: 目标后门类别
+        patch: 要叠加的图像补丁
+        """
         def poisoning_func(xsamp, ysamp):
             if ysamp == orig_class or orig_class is None:
                 # poisoned_xsamp = xsamp + pattern

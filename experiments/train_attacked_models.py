@@ -1,4 +1,3 @@
-'''用于训练和评估神经网络模型（包括干净模型、后门攻击模型和手工艺后门模型）的脚本'''
 from torch import nn
 import torch
 import torchvision
