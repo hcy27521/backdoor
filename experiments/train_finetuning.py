@@ -98,7 +98,9 @@ def finetune_model(model_file):
     train_stats = t.evaluate_epoch(*data['train'], bs=512, name='train_eval', progress_bar=False)
     test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
     test_bd_stats = t.evaluate_epoch(*test_bd, bs=512, name='test_bd', progress_bar=False)
-    stats_pretrain = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats}
+    #加一个评估干净测试集负样本的代码
+    test_bd_neg_stats = t.evaluate_epoch(test_bd.X, data['test'].y, bs=512, name='test_bd_neg', progress_bar=False)
+    stats_pretrain = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'test_bd_neg_stats': test_bd_neg_stats}
     print('* Stats before training:')
     format_stats(stats_pretrain)
 
@@ -110,8 +112,9 @@ def finetune_model(model_file):
         train_stats = t.evaluate_epoch(*data['train'], bs=512, name='train_eval', progress_bar=False)
         test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
         test_bd_stats = t.evaluate_epoch(*test_bd, bs=512, name='test_bd', progress_bar=False)
+        test_bd_neg_stats = t.evaluate_epoch(test_bd.X, data['test'].y, bs=512, name='test_bd_neg', progress_bar=False)
 
-        stats = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats}
+        stats = {'train_stats': train_stats, 'test_stats': test_stats, 'test_bd_stats': test_bd_stats, 'test_bd_neg_stats': test_bd_neg_stats}
         format_stats(stats)
         history.append(stats)
 
