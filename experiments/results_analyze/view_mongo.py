@@ -6,19 +6,23 @@ import pandas as pd
 client = MongoClient("mongodb://localhost:27017/")
 
 # 选择数据库和集合
-prefix = "tm2_v3_btsc_badnet:finetune"
+prefix = "tm2_v3_btsc_handcrafted:finetune"
 db = client["backdoor"]
 col = db[prefix]
 
+
+# 将 success 字段设为 "FALSE" 如果 test_bd_acc < 80%
+"""results = col.update_many(
+  { "result.test_bd_stats.test_bd_acc": { "$lt": 0.8 } },  # 过滤条件：test_bd_acc < 80%
+  {"$set": { "success": "FALSE" } }                # 更新操作：将 success 设为 "FALSE"
+);
+"""
 # 查询所有数据
 cursor = col.find()
 
 # 转换为 DataFrame（方便看表格）
 df = pd.DataFrame(list(cursor))
 
-# 显示前 10 条记录
-print("前 10 条记录：")
-print(df.head(10))
 
 # 导出为 CSV
 df.to_csv(f"{prefix}.csv", index=False)
