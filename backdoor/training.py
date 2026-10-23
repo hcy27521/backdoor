@@ -5,7 +5,7 @@ from tqdm import tqdm
 from .utils import totensor, tonp
 from .image_utils import ImageFormat
 
-import swanlab as wandb
+import wandb
 
 class Trainer:
     def __init__(self, model, criterion=torch.nn.CrossEntropyLoss(reduction='mean'), 
@@ -140,7 +140,7 @@ class Trainer:
             if self.wandb:
                 wandb.log({f"{name}_batch_loss": loss, f"{name}_batch_lma_gradient": np.log(tonp(gradient_size)), f"{name}_batch_acc": batch_acc})
 
-    def evaluate_epoch(self, X, y, bs=64, name='eval', progress_bar=True):
+    def evaluate_epoch(self, X, y, bs=64, name='eval', progress_bar=True, tfm=None):
         assert len(X) == len(y), "X and y must be the same length"
         self.model.eval()
         n_batches = int(np.ceil(len(X) / bs))
@@ -155,6 +155,9 @@ class Trainer:
         for i_batch in (tqdm(range(n_batches)) if progress_bar else range(n_batches)):
             x_batch = totensor(X[i_batch*bs:(i_batch+1)*bs], device=self.device)
             y_batch = totensor(y[i_batch*bs:(i_batch+1)*bs], device=self.device, type=int)
+
+            if tfm:
+              x_batch = tfm(x_batch)
 
             outputs = self.model(x_batch)
 

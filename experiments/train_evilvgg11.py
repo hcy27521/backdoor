@@ -36,21 +36,23 @@ parser.add_argument('-t', '--trigger', type=str, help='Trigger to use. Only for 
 parser.add_argument('--mongo-url', default='mongodb://localhost:27017/', help="The URI of the MongoDB instance to save results to. Defaults to 'mongodb://localhost:27017/'")
 parser.add_argument('--weights-path', default='weights', help='The folder in which to save weights files (must exist) - defaults to weights/')
 
-parser.add_argument('--epochs', type=int, help='Number of epochs to train. Like other training options, this has no effect on handcrafted.', default=50)
-parser.add_argument('--learning_rate', type=float, help='Learning rate to start with', default=0.1)
+parser.add_argument('--epochs', type=int, help='Number of epochs to train. Like other training options, this has no effect on handcrafted.', default=10)
+parser.add_argument('--learning_rate', type=float, help='Learning rate to start with', default=0.01)
 parser.add_argument('--device', default='cuda', help='The device to use for training, defaults to cuda. Currently only affects handcrafted.', type=str)
 
 parser.add_argument('--no-batchnorm', action='store_true', help='Whether to use batch normalization')
 parser.add_argument('--use-wandb', action='store_true', help='Whether to use wandb')
+parser.add_argument('--entity', type=str, default=None, help='WandB entity (your username)')
 parser.add_argument('--no-annealing', action='store_true', help='Whether to use annealing')
 parser.add_argument('--no-dataaug', action='store_true', help='Whether to use data augmentation')
+parser.add_argument('--poison_proportion', type=float, default=0.05, help='Fraction of training samples to poison during training (default 0.05)')
+
 args = parser.parse_args()
-parser.add_argument('--poison-prop', type=float, default=0.05, help='Fraction of training samples to poison during training (default 0.05)')
 
 if args.use_wandb:
     import wandb
-    wandb.init(project='backdoor', entity='mxbi', 
-    config=dict(args)
+    wandb.init(project='backdoor', entity=args.entity, 
+    config=vars(args)
     )
 
 # Set up the dataset
@@ -78,7 +80,7 @@ def train_or_finetune_model(model_file):
 
     # Construct the trigger function & dataset for evaluation
     trigger = Trigger.from_string(args.trigger)
-    badnet = BadNetDataPoisoning.always_backdoor(trigger, backdoor_class=0) # Backdoor class is irrelevant under our evaluation here
+    badnet = BadNetDataPoisoning.always_backdoor(trigger, backdoor_class=6) # Backdoor class is irrelevant under our evaluation here
     test_bd = badnet.apply(data['test'], poison_only=True)
 
     def format_stats(stats):
@@ -114,7 +116,7 @@ def train_or_finetune_model(model_file):
         X_train, y_train = data['train']
         X_train_aug = transform(ImageFormat.torch(X_train, tensor=True))
 
-        X_train_aug, y_train_aug = badnet.apply_random_sample((X_train_aug, y_train), poison_proportion)
+        X_train_aug, y_train_aug = badnet.apply_random_sample((X_train_aug, y_train), args.poison_proportion)
         with torch.autograd.detect_anomaly():
             t.train_epoch(X_train_aug, y_train_aug, bs=256, progress_bar=False, shuffle=True)
 
