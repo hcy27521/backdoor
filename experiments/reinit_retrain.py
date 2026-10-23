@@ -23,7 +23,7 @@ parser.add_argument('task', nargs=1, choices=['clean', 'badnet', 'handcrafted'])
 parser.add_argument('-p', '--prefix', type=str, required=True, help='Prefix for the experiment (weights, mongo). Should not include the task')
 parser.add_argument('-d', '--dataset', type=str, help='Dataset to use', required=True)
 parser.add_argument('-t', '--trigger', type=str, help='Trigger to use', required=True)
-parser.add_argument('-n', '--trials', type=int, help='Number of trials to run', default=10)
+parser.add_argument('-n', '--trials', type=int, help='Number of trials to run', default=1)
 parser.add_argument('-s', '--seed', type=int, help='Seed for random number generators', default=0)
 
 parser.add_argument('--handcrafted-clean-weights', default=None, help='Required for handcrafted task. The weights file which should be attacked (defaults to {weights-path}/{prefix}:clean.pth)')
@@ -31,8 +31,8 @@ parser.add_argument('--attacked_model_path', default=None, help='Path to the att
 parser.add_argument('--mongo-url', default='mongodb://localhost:27017/', help="The URI of the MongoDB instance to save results to. Defaults to 'mongodb://localhost:27017/'")
 parser.add_argument('--weights-path', default='weights', help='The folder in which to save weights files (must exist) - defaults to weights/')
 
-parser.add_argument('--epochs', type=int, help='Number of epochs to train. Like other training options, this has no effect on handcrafted.', default=100)
-parser.add_argument('--learning_rate', type=float, help='Learning rate', default=0.01)
+parser.add_argument('--epochs', type=int, help='Number of epochs to train. Like other training options, this has no effect on handcrafted.', default=300)
+parser.add_argument('--learning_rate', type=float, help='Learning rate', default=0.001)
 parser.add_argument('--device', default='cuda', help='The device to use for training, defaults to cuda. Currently only affects handcrafted.', type=str)
 
 parser.add_argument('--no-batchnorm', action='store_true', help='Whether to use batch normalization')
@@ -58,6 +58,49 @@ ds = getattr(dataset, args.dataset)()
 data = ds.get_data()   # 假设返回 {'train': (X_train, y_train), 'test': (X_test, y_test), ...}
 # X 形状通常是 (N, H, W, C) 或 (N, C, H, W) 你项目中 ImageFormat.torch 会处理
 backdoor_class = 7
+
+#######################################################
+
+from torch.utils.data import TensorDataset, DataLoader
+
+# 假设 data['train'][0] 是 (N, H, W, C) 的 NumPy 数组，范围 0-255
+X_train_np, y_train_np = data['train']
+# 将 NumPy 数据转换为 PyTorch TensorDataset
+# 注意：你需要先手动将数据从 HWC 转换为 CWH，并归一化到 0-1
+X_train_tensor = torch.from_numpy(X_train_np).permute(0, 3, 1, 2).float() / 255.0
+
+temp_dataset = TensorDataset(X_train_tensor, torch.from_numpy(y_train_np))
+temp_loader = DataLoader(temp_dataset, batch_size=512, shuffle=False, num_workers=4)
+
+# 初始化统计变量
+channel_sums = torch.zeros(3)
+channel_squared_sums = torch.zeros(3)
+num_pixels = 0
+
+for images, _ in temp_loader:
+    # 形状 images: (B, C, H, W)
+    
+    # 累计通道和
+    channel_sums += torch.sum(images, dim=[0, 2, 3])
+    
+    # 累计通道平方和
+    channel_squared_sums += torch.sum(images**2, dim=[0, 2, 3])
+    
+    # 累计像素数
+    num_pixels += images.size(0) * images.size(2) * images.size(3)
+
+# 计算均值 (Mean)
+mean = channel_sums / num_pixels
+
+# 计算标准差 (Std)
+# std = sqrt(E[x^2] - (E[x])^2)
+std = torch.sqrt((channel_squared_sums / num_pixels) - mean**2)
+
+print("IMDBWIKI_MEAN =", mean.tolist())
+print("IMDBWIKI_STD =", std.tolist())
+
+#####################################
+
 
 
 trigger = Trigger.from_string(args.trigger)
@@ -256,6 +299,8 @@ if not args.no_dataaug:
     transform = transforms.Compose([
         transforms.RandomCrop(ds.image_shape[0], padding=4),
         transforms.RandomHorizontalFlip(),
+        # 💡 增加色彩增强以提高泛化能力
+        #transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
     ])
 else:
     transform = transforms.Compose([])
@@ -275,7 +320,7 @@ def train_clean(attacked_path, prefix, n, model_cls_attacked=None, model_ctor_kw
         history = []
 
         t = Trainer(model_clean, optimizer=torch.optim.SGD,
-            optimizer_params=dict(lr=args.learning_rate, momentum=0.9, weight_decay=5e-4),
+            optimizer_params=dict(lr=args.learning_rate, momentum=0.9, weight_decay=1e-3),
             use_wandb=args.use_wandb)
         if not args.no_annealing:
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(t.optim, T_max=args.epochs)

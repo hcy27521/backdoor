@@ -42,14 +42,15 @@ parser.add_argument('--device', default='cuda', help='The device to use for trai
 
 parser.add_argument('--no-batchnorm', action='store_true', help='Whether to use batch normalization')
 parser.add_argument('--use-wandb', action='store_true', help='Whether to use wandb')
+parser.add_argument('--entity', type=str, default=None, help='WandB entity (your username)')
 parser.add_argument('--no-annealing', action='store_true', help='Whether to use annealing')
 parser.add_argument('--no-dataaug', action='store_true', help='Whether to use data augmentation')
 args = parser.parse_args()
 
 if args.use_wandb:
     import wandb
-    wandb.init(project='backdoor', entity='mxbi', 
-    config=dict(args)
+    wandb.init(project='backdoor', entity=args.entity, 
+    config=vars(args), name=f"{args.prefix}:{args.task[0]}"
     )
 
 # Set up the dataset
@@ -203,7 +204,7 @@ def train_handcrafted(prefix, n):
         handcrafted = CNNBackdoor(model, device=args.device)
         handcrafted.insert_backdoor(X_batch_clean, y_batch_clean, X_batch_bd, **kwargs, enforce_min_separation=False)
 
-        t = Trainer(model, use_wandb=False, device=args.device) # We don't actually train, just for evaluation
+        t = Trainer(model, use_wandb=args.use_wandb, device=args.device) # We don't actually train, just for evaluation
 
         train_stats = t.evaluate_epoch(*data['train'], bs=512, name='train_eval', progress_bar=False)
         test_stats = t.evaluate_epoch(*data['test'], bs=512, name='test_eval', progress_bar=False)
@@ -222,22 +223,23 @@ def train_handcrafted(prefix, n):
     db = MongoClient(args.mongo_url)['backdoor'][f'{prefix}:handcrafted']
     train_model_handcrafted = Searchable(train_model_handcrafted, db)
 
-    train_model_handcrafted.random_search([], 
-    dict(
-        neuron_selection_mode='acc',
-        acc_th=Uniform(0, 0.05),
-        num_to_compromise=LogUniform(1, 10, integer=True),
-        min_separation=Choice([0.9, 0.95, 0.98, 0.99, 0.995, 0.999]),
-        guard_bias_k=Uniform(0.5, 2),
-        backdoor_class=args.backdoor_class,
-        target_amplification_factor=LogUniform(1, 50),
-        max_separation_boosting_rounds=10,
-        n_filters_to_compromise=LogUniform(1, 10, integer=True),
-        conv_filter_boost_factor=LogUniform(0.1, 5)
-    ),
-    trials=n,
-    on_error='return',
-    seed=args.seed
+    train_model_handcrafted.random_search(
+        [],
+        dict(
+            neuron_selection_mode='acc',
+            acc_th=Uniform(0, 0.05),
+            num_to_compromise=LogUniform(1, 10, integer=True),
+            min_separation=Choice([0.9, 0.95, 0.98, 0.99, 0.995, 0.999]),
+            guard_bias_k=Uniform(0.5, 2),
+            backdoor_class=args.backdoor_class,
+            target_amplification_factor=LogUniform(1, 50),
+            max_separation_boosting_rounds=10,
+            n_filters_to_compromise=LogUniform(1, 10, integer=True),
+            conv_filter_boost_factor=LogUniform(0.1, 5)
+        ),
+        trials=n,
+        on_error='return',
+        seed=args.seed
     )
 
 print(args)

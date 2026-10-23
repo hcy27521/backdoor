@@ -6,7 +6,7 @@ import pandas as pd
 client = MongoClient("mongodb://localhost:27017/")
 
 # 选择数据库和集合
-prefix = "tm2_v3_btsc_handcrafted:finetune"
+prefix = "tm3_v2:badnet"
 db = client["backdoor"]
 col = db[prefix]
 

@@ -42,14 +42,15 @@ parser.add_argument('--device', default='cuda', help='The device to use for trai
 
 parser.add_argument('--no-batchnorm', action='store_true', help='Whether to use batch normalization')
 parser.add_argument('--use-wandb', action='store_true', help='Whether to use wandb')
+parser.add_argument('--entity', type=str, default=None, help='WandB entity (your username)')
 parser.add_argument('--no-annealing', action='store_true', help='Whether to use annealing')
 parser.add_argument('--no-dataaug', action='store_true', help='Whether to use data augmentation')
 args = parser.parse_args()
 
 if args.use_wandb:
     import wandb
-    wandb.init(project='backdoor', entity='mxbi', 
-    config=dict(args)
+    wandb.init(project='backdoor', entity=args.entity, 
+    config=vars(args)
     )
 
 # Set up the dataset
